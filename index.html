@@ -1,0 +1,65 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS Service Cost Comparison</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        /* [Previous CSS styles remain the same] */
+    </style>
+</head>
+<body>
+    <!-- [Previous HTML content remains the same until the script section] -->
+
+    <script>
+        async function estimateCosts() {
+            const num_services = document.getElementById('num_services').value;
+            const traffic_gb = document.getElementById('traffic_gb').value;
+
+            try {
+                const response = await fetch('YOUR_API_GATEWAY_ENDPOINT', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        num_services: num_services,
+                        traffic_gb: traffic_gb
+                    })
+                });
+
+                const data = await response.json();
+                
+                const summaryHTML = `
+                    <h2>Monthly Cost Summary:</h2>
+                    <p>VPC Lattice: $${data.lattice_cost.toFixed(2)}</p>
+                    <p>PrivateLink: $${data.privatelink_cost.toFixed(2)}</p>
+                    <p>Network Load Balancer: $${data.nlb_cost.toFixed(2)}</p>
+                    
+                    <h2>Recommendation:</h2>
+                    <p>${getRecommendation(data)} is the most cost-effective option for your use case.</p>
+                `;
+
+                document.getElementById('summary').innerHTML = summaryHTML;
+                document.getElementById('summary').style.display = 'block';
+
+                Plotly.newPlot('chart', JSON.parse(data.plot));
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while calculating costs. Please try again.');
+            }
+        }
+
+        function getRecommendation(data) {
+            const costs = [
+                { name: 'VPC Lattice', cost: data.lattice_cost },
+                { name: 'PrivateLink', cost: data.privatelink_cost },
+                { name: 'Network Load Balancer', cost: data.nlb_cost }
+            ];
+            return costs.reduce((min, current) => current.cost < min.cost ? current : min).name;
+        }
+    </script>
+</body>
+</html>
