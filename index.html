@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,48 +6,204 @@
     <title>AWS Service Cost Comparison</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
-        /* [Previous CSS styles remain the same] */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="number"] {
+            width: 100%;
+            max-width: 300px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .summary {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            display: none;
+        }
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+        .loading {
+            display: none;
+            margin-top: 20px;
+            text-align: center;
+            color: #007bff;
+        }
+        .chart-container {
+            margin-top: 20px;
+            min-height: 600px;
+        }
+        .cost-card {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .cost-card h3 {
+            margin: 0 0 10px 0;
+            color: #007bff;
+        }
+        .recommendation {
+            background-color: #e8f4ff;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
-    <!-- [Previous HTML content remains the same until the script section] -->
+    <div class="container">
+        <h1>AWS Service Cost Comparison</h1>
+        
+        <div class="form-group">
+            <label for="num_services">Number of Services/Endpoints:</label>
+            <input type="number" id="num_services" min="1" value="1" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="traffic_gb">Estimated Monthly Traffic (GB):</label>
+            <input type="number" id="traffic_gb" min="0" step="0.1" value="100" required>
+        </div>
+        
+        <button onclick="estimateCosts()" id="calculateBtn">Calculate Costs</button>
+
+        <div id="loading" class="loading">
+            Calculating costs... Please wait...
+        </div>
+
+        <div id="error" class="error"></div>
+
+        <div id="summary" class="summary"></div>
+        
+        <div id="chart" class="chart-container"></div>
+    </div>
 
     <script>
+        const API_ENDPOINT = 'https://ou3igb9nq6.execute-api.us-east-1.amazonaws.com/prod'; // Replace with your API Gateway URL
+
         async function estimateCosts() {
             const num_services = document.getElementById('num_services').value;
             const traffic_gb = document.getElementById('traffic_gb').value;
+            const calculateBtn = document.getElementById('calculateBtn');
+            const loadingDiv = document.getElementById('loading');
+            const errorDiv = document.getElementById('error');
+            const summaryDiv = document.getElementById('summary');
+
+            // Input validation
+            if (!num_services || !traffic_gb || num_services < 1 || traffic_gb < 0) {
+                errorDiv.textContent = 'Please enter valid values for both fields.';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            // Reset state
+            calculateBtn.disabled = true;
+            loadingDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+            summaryDiv.style.display = 'none';
 
             try {
-                const response = await fetch('https://ou3igb9nq6.execute-api.us-east-1.amazonaws.com/prod/estimate', {
+                const response = await fetch(API_ENDPOINT, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        num_services: num_services,
-                        traffic_gb: traffic_gb
+                        num_services: parseInt(num_services),
+                        traffic_gb: parseFloat(traffic_gb)
                     })
                 });
 
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const data = await response.json();
                 
+                // Create summary HTML
                 const summaryHTML = `
-                    <h2>Monthly Cost Summary:</h2>
-                    <p>VPC Lattice: $${data.lattice_cost.toFixed(2)}</p>
-                    <p>PrivateLink: $${data.privatelink_cost.toFixed(2)}</p>
-                    <p>Network Load Balancer: $${data.nlb_cost.toFixed(2)}</p>
+                    <h2>Cost Analysis Results</h2>
                     
-                    <h2>Recommendation:</h2>
-                    <p>${getRecommendation(data)} is the most cost-effective option for your use case.</p>
+                    <div class="cost-card">
+                        <h3>VPC Lattice</h3>
+                        <p>Monthly Cost: $${data.lattice_cost.toFixed(2)}</p>
+                    </div>
+                    
+                    <div class="cost-card">
+                        <h3>PrivateLink</h3>
+                        <p>Monthly Cost: $${data.privatelink_cost.toFixed(2)}</p>
+                    </div>
+                    
+                    <div class="cost-card">
+                        <h3>Network Load Balancer</h3>
+                        <p>Monthly Cost: $${data.nlb_cost.toFixed(2)}</p>
+                    </div>
+                    
+                    <div class="recommendation">
+                        <h3>Recommendation</h3>
+                        <p>${getRecommendation(data)} is the most cost-effective option for your use case.</p>
+                    </div>
                 `;
 
-                document.getElementById('summary').innerHTML = summaryHTML;
-                document.getElementById('summary').style.display = 'block';
+                summaryDiv.innerHTML = summaryHTML;
+                summaryDiv.style.display = 'block';
 
-                Plotly.newPlot('chart', JSON.parse(data.plot));
+                // Parse and display the plot
+                const plotData = JSON.parse(data.plot);
+                Plotly.newPlot('chart', plotData.data, plotData.layout);
+
             } catch (error) {
                 console.error('Error:', error);
-                alert('An error occurred while calculating costs. Please try again.');
+                errorDiv.textContent = 'An error occurred while calculating costs. Please try again.';
+                errorDiv.style.display = 'block';
+            } finally {
+                calculateBtn.disabled = false;
+                loadingDiv.style.display = 'none';
             }
         }
 
@@ -60,6 +215,9 @@
             ];
             return costs.reduce((min, current) => current.cost < min.cost ? current : min).name;
         }
+
+        // Initial calculation on page load
+        document.addEventListener('DOMContentLoaded', estimateCosts);
     </script>
 </body>
 </html>
